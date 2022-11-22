@@ -1,9 +1,29 @@
 import numpy as np
 import time
+import matplotlib.pyplot as plt
 
 from sklearn.metrics import mean_squared_error
 from math import sqrt
+from tqdm import tqdm
 from sklearn.metrics.pairwise import cosine_similarity
+
+
+def cal_RMSE(pred_score_matrix, test_score_matrix):
+    """
+    Args:
+        pred_score_matrix ([numpy]): the prediction of score matrix
+        test_score_matrix ([numpy]): test matrix label
+
+    Returns:
+        [float]: the RMSE value
+    """
+    pred = pred_score_matrix[test_score_matrix.nonzero()].flatten()
+    label = test_score_matrix[test_score_matrix.nonzero()].flatten()
+    return sqrt(mean_squared_error(pred, label))
+
+
+def frobenius(x):
+    return np.linalg.norm(x, ord='fro')
 
 
 def get_user_movie_score(data_path):
@@ -66,26 +86,40 @@ def collaborative_filtering(matrix):
     weight_sum_vec = weight_sum_vec.repeat([pred_score_matrix.shape[1]], axis=1)
     pred_score_matrix = pred_score_matrix / weight_sum_vec
     return pred_score_matrix
- 
-
-def cal_RMSE(pred_score_matrix, test_score_matrix):
-    """
-    Args:
-        pred_score_matrix ([numpy]): the prediction of score matrix
-        test_score_matrix ([numpy]): test matrix label
-
-    Returns:
-        [float]: the RMSE value
-    """
-    pred = pred_score_matrix[test_score_matrix.nonzero()].flatten()
-    label = test_score_matrix[test_score_matrix.nonzero()].flatten()
-    return sqrt(mean_squared_error(pred, label))
 
 
-if __name__ == "__main__":
-    train_data_path = "./data/netflix_train.txt"
-    test_data_path = "./data/netflix_test.txt"
+def matrix_factorization(matrix, test_matrix, k=50, lambda_val=0.01, aux_init=0.01, alpha=0.0001,
+                    n_epoch=300):
+    A = np.where(matrix > 0, 1, 0)
+    U = np.random.rand(matrix.shape[0], k) * aux_init
+    V = np.random.rand(matrix.shape[0], k) * aux_init
 
+    J_list = []
+    rmse_list = []
+    for i in tqdm(range(n_epoch)):
+        d_u = np.dot(A * (np.dot(U, V.T) - matrix), V) + 2 * lambda_val * U
+        d_v = np.dot((A * (np.dot(U, V.T) - matrix)).T, U) + 2 * lambda_val * V
+        U = U - alpha * d_u
+        V = V - alpha * d_v
+        J = 0.5 * frobenius(A * (matrix - np.dot(U, V.T))) ** 2 + \
+            lambda_val * frobenius(U) ** 2 + lambda_val * frobenius(V) ** 2
+        J_list.append(J)
+
+        rmse = cal_RMSE(np.dot(U, V.T), test_matrix)
+        print("Epoch: {}, RMSE: {}".format(i + 1, rmse))
+        rmse_list.append(rmse)
+
+    avg_rmse = sum(rmse_list) / len(rmse_list)
+    print("RMSE: {}".format(avg_rmse))
+
+    plt.figure()
+    plt.plot(rmse_list)
+
+    plt.savefig('matrix_factorization_rmse.png')
+    plt.figure()
+
+
+def run_cf(train_data_path, test_data_path):
     # 获取训练集的user和对应的movie id, score
     train_user_movie_score = get_user_movie_score(data_path=train_data_path)
     train_score_matrix, test_score_matrix = get_score_matrix(user_movie_score=train_user_movie_score,
@@ -97,4 +131,20 @@ if __name__ == "__main__":
     rmse = cal_RMSE(pred_score_matrix, test_score_matrix)
     print("RMSE: {}".format(rmse))
     print("Collaborative Filtering algorithm time: {}".format(algorithm_time))
+
+
+def run_mf(train_data_path, test_data_path):
+    train_user_movie_score = get_user_movie_score(data_path=train_data_path)
+    train_score_matrix, test_score_matrix = get_score_matrix(user_movie_score=train_user_movie_score,
+        train_data_path=train_data_path, test_data_path=test_data_path)
+    
+    matrix_factorization(matrix=train_score_matrix, test_matrix=test_score_matrix,
+        lambda_val=0.01, aux_init=0.01, alpha=0.0001, n_epoch=300)
+
+
+if __name__ == "__main__":
+    train_data_path = "./data/netflix_train.txt"
+    test_data_path = "./data/netflix_test.txt"
+
+    run_mf(train_data_path, test_data_path)
 
