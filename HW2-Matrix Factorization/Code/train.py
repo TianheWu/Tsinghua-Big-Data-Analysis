@@ -27,6 +27,7 @@ def frobenius(x):
 
 
 def get_user_movie_score(data_path):
+    # 构建用户与电影分数哈希表
     user_movie_score = {}
     with open(data_path, 'r') as listFile:
         for line in listFile:
@@ -89,34 +90,50 @@ def collaborative_filtering(matrix):
 
 
 def matrix_factorization(matrix, test_matrix, k=50, lambda_val=0.01, aux_init=0.01, alpha=0.0001,
-                    n_epoch=300):
+                    n_epoch=100):
     A = np.where(matrix > 0, 1, 0)
     U = np.random.rand(matrix.shape[0], k) * aux_init
     V = np.random.rand(matrix.shape[0], k) * aux_init
 
     J_list = []
     rmse_list = []
+    best_rmse = 999
     for i in tqdm(range(n_epoch)):
+
+        # 计算偏导
         d_u = np.dot(A * (np.dot(U, V.T) - matrix), V) + 2 * lambda_val * U
         d_v = np.dot((A * (np.dot(U, V.T) - matrix)).T, U) + 2 * lambda_val * V
+
+        # 更新U和V
         U = U - alpha * d_u
         V = V - alpha * d_v
+
+        # 目标函数值计算
         J = 0.5 * frobenius(A * (matrix - np.dot(U, V.T))) ** 2 + \
             lambda_val * frobenius(U) ** 2 + lambda_val * frobenius(V) ** 2
         J_list.append(J)
 
         rmse = cal_RMSE(np.dot(U, V.T), test_matrix)
+        if rmse < best_rmse:
+            best_rmse = rmse
         print("Epoch: {}, RMSE: {}".format(i + 1, rmse))
         rmse_list.append(rmse)
 
     avg_rmse = sum(rmse_list) / len(rmse_list)
-    print("RMSE: {}".format(avg_rmse))
+    print("RMSE: {}, best RMSE: {}".format(avg_rmse, best_rmse))
 
-    plt.figure()
+    # 绘制rmse图像
     plt.plot(rmse_list)
+    plt.xlabel("Epoch")
+    plt.ylabel("RMSE")
+    plt.savefig('matrix_factorization_rmse.png', dpi=600, bbox_inches='tight')
+    plt.close()
 
-    plt.savefig('matrix_factorization_rmse.png')
-    plt.figure()
+    # 绘制目标函数值图像
+    plt.plot(J_list)
+    plt.xlabel("Epoch")
+    plt.ylabel("J value")
+    plt.savefig('J-value.png', dpi=600, bbox_inches='tight')
 
 
 def run_cf(train_data_path, test_data_path):
@@ -139,7 +156,7 @@ def run_mf(train_data_path, test_data_path):
         train_data_path=train_data_path, test_data_path=test_data_path)
     
     matrix_factorization(matrix=train_score_matrix, test_matrix=test_score_matrix,
-        lambda_val=0.01, aux_init=0.01, alpha=0.0001, n_epoch=300)
+        k=70, lambda_val=0.01, aux_init=0.01, alpha=5e-5, n_epoch=300)
 
 
 if __name__ == "__main__":
