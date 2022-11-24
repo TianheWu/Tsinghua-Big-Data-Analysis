@@ -17,7 +17,7 @@ This file includes lots of function tools for one-way ANOVA such as normality te
 ## Homework-2: Matrix Factorization
 We need to implement collaborative filtering algorithm and matrix factorization and compare their performance difference. More details can be found in homework2.pdf.
 
-You can run the homework1 with:
+You can run the homework2 with:
 ```
 python train.py
 ```
